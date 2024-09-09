@@ -1,14 +1,10 @@
-import * as bkg from '$/backgrounds.js'
-import * as bkg2 from '$/backgrounds.json'
+import { imageRes, tileCount, startCoord, tileSize, voidColor, tilesInX } from '$/backgrounds.json'
 import { loadShader, checkProg } from './render_util.js'
-
-const actualResolution = bkg2.backgroundResolution
-const texturesC = bkg.backgrounds.length
 
 // THIS LANGUAGE... IMAGINE TOT BEING ABLE TO PRINT A NUMBER WITH DECIMAL POINT
 // NO, toFixed() ALSO ROUNDS THE NUMBER OR ADDS A MILLION ZEROS
 // NO, toString() PRINTS INTEGERS WITHOUT DECIMAL POINT
-const bgSize = bkg.backgroundSize + '.0'
+const bgSize = tileSize + '.0'
 
 const vsSource = `#version 300 es
 precision highp float;
@@ -90,8 +86,6 @@ export function updateBackground(context, index, data) {
     const rd = context.backgrounds
     if(rd?.loadImages !== true) return
 
-    const imgData = rd.images[index]
-
     const blob = new Blob([data], { type: 'image/png' })
     const url = URL.createObjectURL(blob) // TODO: delete
     const img = new Image()
@@ -103,24 +97,24 @@ export function updateBackground(context, index, data) {
         // mimpaps not appear. But only until the user moves the screen
         // or something else triggers a rerender, so shouldn't be a big deal
         context.backgrounds.changed.push(index)
-        imgData.done = true
-        console.log('err')
+        rd.images.push({ ok: false })
     })
     img.addEventListener('load', _ => {
         const gl = context.gl
 
+        const textureI = rd.images.length
+
         gl.bindTexture(gl.TEXTURE_2D_ARRAY, rd.bgTextures)
         gl.texSubImage3D(
             gl.TEXTURE_2D_ARRAY, 0,
-            0, 0, index,
-            actualResolution, actualResolution, 1,
+            0, 0, textureI,
+            imageRes, imageRes, 1,
             gl.RGB, gl.UNSIGNED_BYTE,
             img
         )
 
-        rd.changed.push(index)
-        imgData.ok = true
-        imgData.done = true
+        rd.changed.push(textureI)
+        rd.images.push({ ok: true, coords: [Math.floor(index % tilesInX), Math.floor(index / tilesInX)] })
 
         context.requestRender(2)
     })
@@ -152,11 +146,11 @@ export function setup(context) {
     renderData.bgTextures = bgTextures
 
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, bgTextures)
-    console.log(actualResolution, __backgrounds_mipmap_levels)
+    console.log(imageRes, __backgrounds_mipmap_levels)
     gl.texStorage3D(
         gl.TEXTURE_2D_ARRAY, __backgrounds_mipmap_levels,
-        gl.RGB565, actualResolution, actualResolution,
-        texturesC
+        gl.RGB565, imageRes, imageRes,
+        tileCount
     )
 
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST) // for now
@@ -164,15 +158,16 @@ export function setup(context) {
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 
-    const images = Array(texturesC)
+    const images = Array(tileCount)
+    images.length = 0
     renderData.images = images
 
     const buf = gl.createBuffer()
     renderData.buf = buf
     gl.bindBuffer(gl.ARRAY_BUFFER, buf)
-    gl.bufferData(gl.ARRAY_BUFFER, texturesC * 12, gl.DYNAMIC_DRAW)
+    gl.bufferData(gl.ARRAY_BUFFER, tileCount * 12, gl.DYNAMIC_DRAW)
 
-    const coords = new ArrayBuffer(texturesC * 12)
+    const coords = new ArrayBuffer(tileCount * 12)
     const coordsDv = new DataView(coords)
     renderData.dataView = coordsDv
 
@@ -199,20 +194,14 @@ export function setup(context) {
 
     // by the way, how is this color the correct one?
     // I palletized the images, hasn't it change?
-    const c = bkg2.backgroundColor
     const inputData = new Uint8Array(3)
-    inputData[0] = (c      ) & 0xff
-    inputData[1] = (c >>  8) & 0xff
-    inputData[2] = (c >> 16) & 0xff
+    inputData[0] = (voidColor      ) & 0xff
+    inputData[1] = (voidColor >>  8) & 0xff
+    inputData[2] = (voidColor >> 16) & 0xff
     const res = convToRGB565(gl, inputData)
     gl.clearColor(res[0] / 255, res[1] / 255, res[2] / 255, 1)
 
     renderData.ok = true
-
-    for(let i = 0; i < texturesC; i++) {
-        images[i] = { ok: false, done: false }
-    }
-
     renderData.loadImages = true
 }
 
@@ -231,26 +220,25 @@ export function render(context) {
         const dv = rd.dataView
 
         var coordsCount = 0
-        var done = true
-        for(let i = 0; i < texturesC; i++) {
-            done = done & rd.images[i].done
-            if(!rd.images[i].ok) continue
-            const bg = bkg.backgrounds[i]
+        for(let i = 0; i < rd.images.length; i++) {
+            const img = rd.images[i]
+            if(!img.ok) continue
+            const coord = img.coords
 
-            const x = bkg.backgroundStart[0] + bg[0] * bkg.backgroundSize
-            const y = bkg.backgroundStart[1] + bg[1] * bkg.backgroundSize
+            const x = startCoord[0] + coord[0] * tileSize
+            const y = startCoord[1] + coord[1] * tileSize
             dv.setFloat32(coordsCount * 12    , x, true)
             dv.setFloat32(coordsCount * 12 + 4, y, true)
             dv.setUint32 (coordsCount * 12 + 8, i, true)
             coordsCount++
         }
 
-        /* if(done && !rd.mimpaps) {
+        if(rd.images.length == tileCount && !rd.mimpaps) {
             rd.mimpaps = true
             gl.bindTexture(gl.TEXTURE_2D_ARRAY, rd.bgTextures)
             gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR)
             gl.generateMipmap(gl.TEXTURE_2D_ARRAY)
-        }*/
+        }
 
         gl.bindBuffer(gl.ARRAY_BUFFER, rd.buf)
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, dv, 0, coordsCount * 12)

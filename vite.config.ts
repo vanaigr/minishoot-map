@@ -78,7 +78,6 @@ export default defineConfig(({ command, mode, isSsrBuild, isPreview }) => {
                 '$/markers.png': srcPath('./data-raw/markers/markers.png'),
                 '$/backgrounds.pak': srcPath('./data-processed/backgrounds.pak'),
 
-                '$/backgrounds.js': srcPath('./data-raw/backgrounds/backgrounds.js'),
                 '$/backgrounds.json': srcPath('./data-processed/backgrounds.json'),
                 '$/markers-meta.json': srcPath('./data-processed/markers-meta.json'),
                 '$/markers.json': srcPath('./data-processed/markers.json'),
