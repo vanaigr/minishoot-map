@@ -720,8 +720,33 @@ function onClick(x, y) {
 }
 
 function getInfo(index) {
-    const object = objects[index]
-    if(object) message({ type: 'getInfo', object: serializeObject(object) })
+    if(index < 0) {
+        const s = scenes[-index - 1]
+        if(s) {
+            const referenceNames = {}
+
+            const children = Array(s.roots.length)
+            for(let i = 0; i < s.roots.length; i++) {
+                const child = s.roots[i]
+                if(child) {
+                    children[i] = child._index
+                    const name = child.name
+                    if(name) {
+                        referenceNames[child._index] = name
+                    }
+                }
+                else {
+                    children[i] = null
+                }
+            }
+
+            message({ type: 'getSceneInfo', scene: { referenceNames, children, name: s.name } })
+        }
+    }
+    else {
+        const object = objects[index]
+        if(object) message({ type: 'getInfo', object: serializeObject(object) })
+    }
 }
 
 function calcMarkerFilters(filters) {

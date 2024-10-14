@@ -32,6 +32,9 @@ if(__worker) {
             sideMenu.setCurrentObject({ first: d.object })
             updUrl(d.object)
         }
+        else if(d.type === 'getSceneInfo') {
+            sideMenu.setCurrentObject({ scene: d.scene })
+        }
         else if(d.type === 'colliders-done') {
             const it = {
                 verts: d.verts,

@@ -166,15 +166,41 @@ function FilterMenu() {
 
 function ObjectMenu() {
     const obj = useCurrentObject()
-    return <div key={obj.tick} className='object-menu'>
-        <Object first={obj.data?.first}/>
-        <div className="space"></div>
-        <Other nearby={obj.data?.nearby}/>
-    </div>
+    if(obj.data?.scene != null) {
+        return <div key={obj.tick} className='object-menu'>
+            <Scene scene={obj.data.scene}/>
+        </div>
+    }
+    else {
+        return <div key={obj.tick} className='object-menu'>
+            <Object first={obj.data?.first}/>
+            <div className="space"></div>
+            <Other nearby={obj.data?.nearby}/>
+        </div>
+    }
 }
 
 function vec2s(v) {
     return v[0] + ', ' + v[1]
+}
+
+function Scene({ scene }) {
+    const children = Array(scene.children.length)
+    for(let i = 0; i < scene.children.length; i++) {
+        const ci = scene.children[i]
+        children[i] = <Link key={i} index={ci} name={scene.referenceNames[ci]}/>
+    }
+
+    return <>
+        <Props>
+            <Prop>Name:{scene.name}</Prop>
+        </Props>
+        <div className="space"></div>
+        <details className="component" open={true}>
+            <summary>Children</summary>
+            <Props>{children}</Props>
+        </details>
+    </>
 }
 
 function Object({ first }) {
@@ -341,8 +367,7 @@ ac(ti.CircleCollider2D, (c, o) => {
 function Link({ index, name }) {
     const displayName = name != null ? name || '<No name>' : '<Unknown>'
 
-    // index < 0 is scenes, we can't display info about them yet
-    if(index != null && index >= 0) {
+    if(index != null) {
         function onClick() { gotoOther(index) }
         function reactIsDumb(element) {
             // imagine saying that this is a security vulnerability
